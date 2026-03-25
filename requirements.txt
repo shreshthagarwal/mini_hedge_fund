@@ -1,0 +1,10 @@
+# Core
+pandas>=2.0
+numpy>=1.24
+matplotlib>=3.7
+
+# Data — yfinance (historical + live polling)
+yfinance>=0.2
+
+# Optional: install if you want to try tvDatafeed later
+# tradingview-datafeed>=2.0.0
