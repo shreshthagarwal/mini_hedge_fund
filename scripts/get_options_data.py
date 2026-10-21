@@ -5,7 +5,10 @@ from urllib.parse import quote
 from time import sleep
 
 # ================= CONFIG =================
-ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1Q0NCSkUiLCJqdGkiOiI2OWJlNjMzODg3YTgwYjEzMWJkZTgyYzMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzc0MDg0OTIwLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NzQxMzA0MDB9.qrmta6zTWRfRDbSjqgbBFw949O5Q74iCxRCFw377d0U"
+# Token comes from .upstox_token (or UPSTOX_ACCESS_TOKEN) — never hardcode it.
+ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip() or (
+    open(".upstox_token").read().strip() if os.path.exists(".upstox_token") else ""
+)
 UNDERLYING = "NSE_INDEX|Nifty 50"
 EXPIRY = "2024-10-31"
 FROM_DATE = "2024-10-01"
