@@ -190,11 +190,11 @@ def cmd_paper():
         from upstox_token import token_is_fresh
         if not token_is_fresh(TOKEN_FILE):
             logger.error("Token expired (issued before today's 03:30). "
-                         "Approve a new login: /auth page or scripts/token_service.py request")
+                         "Log in again on the /auth page.")
             return
         token = open(TOKEN_FILE).read().strip()
     if not token:
-        logger.error("No token. Run: python scripts/upstox_auth.py")
+        logger.error("No token. Log in on the /auth page.")
         return
 
     # Data paths

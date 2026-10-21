@@ -8,12 +8,6 @@
 	encode gzip
 	log # access log → journald (Authorization header is redacted)
 
-	# Upstox Notifier Webhook — must be reachable without a login;
-	# token_service.py only accepts it on the secret path.
-	handle /upstox/webhook/* {
-		reverse_proxy 127.0.0.1:5174
-	}
-
 	handle {
 		basic_auth {
 			{$DASH_USER} {$DASH_PASSWORD_HASH}
@@ -28,7 +22,7 @@
 
 	# Bot stopped (outside market hours) → send to the login/status page
 	handle_errors 502 503 {
-		@bot not path /auth* /upstox/*
+		@bot not path /auth*
 		redir @bot /auth 302
 		respond "Service unavailable" 502
 	}

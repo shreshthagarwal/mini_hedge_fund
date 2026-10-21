@@ -1,8 +1,7 @@
 # /etc/cron.d/hedgebot — daily schedule (server timezone is Asia/Kolkata).
-# 03:35  ask Upstox for a login approval (tokens die at 03:30 daily)
-# 09:00  start the bot if a fresh token arrived
+# Log in on https://<site>/auth any time after 03:30 (tokens die at 03:30 daily)
+# 09:00  start the bot if a fresh token exists
 # 15:40  stop the bot after square-off
 SHELL=/bin/sh
-35 3  * * 1-5 ubuntu cd /home/ubuntu/mini_hedge_fund && venv/bin/python scripts/token_service.py request        >> /home/ubuntu/token-cron.log 2>&1
 0  9  * * 1-5 ubuntu cd /home/ubuntu/mini_hedge_fund && venv/bin/python scripts/token_service.py start-if-fresh >> /home/ubuntu/token-cron.log 2>&1
 40 15 * * 1-5 root   systemctl stop hedgebot

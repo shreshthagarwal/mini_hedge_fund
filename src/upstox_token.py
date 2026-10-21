@@ -1,11 +1,6 @@
 """
-upstox_token.py — daily Upstox access token via the Access Token Request API.
-
-No phone/OTP/PIN typing:
-  1. request_token() asks Upstox to send the account holder an approval
-     prompt (Upstox app + WhatsApp).
-  2. On approval Upstox POSTs the token to the app's Notifier Webhook URL,
-     which scripts/token_service.py receives and passes to save_token().
+upstox_token.py — daily Upstox access token (OAuth code flow) helpers,
+used by scripts/token_service.py.
 
 Upstox tokens expire at 03:30 IST the day after issue, whenever they were
 issued — so a token only counts as fresh if it was saved after the most
@@ -20,7 +15,6 @@ from zoneinfo import ZoneInfo
 IST        = ZoneInfo("Asia/Kolkata")
 TOKEN_FILE = ".upstox_token"
 API_V2     = "https://api.upstox.com/v2"
-API_V3     = "https://api.upstox.com/v3"
 
 
 def last_expiry(now: datetime = None) -> datetime:
@@ -39,24 +33,6 @@ def token_saved_at(path: str = TOKEN_FILE):
 def token_is_fresh(path: str = TOKEN_FILE) -> bool:
     saved = token_saved_at(path)
     return saved is not None and saved >= last_expiry()
-
-
-def request_token() -> dict:
-    """Trigger the approval prompt. Returns Upstox's JSON response."""
-    key    = os.getenv("UPSTOX_API_KEY", "").strip()
-    secret = os.getenv("UPSTOX_API_SECRET", "").strip()
-    if not key or not secret:
-        return {"status": "error", "errors": [{"message": "UPSTOX_API_KEY/SECRET not set"}]}
-    resp = requests.post(
-        f"{API_V3}/login/auth/token/request/{key}",
-        json    = {"client_secret": secret},
-        headers = {"Accept": "application/json", "Content-Type": "application/json"},
-        timeout = 15,
-    )
-    try:
-        return resp.json()
-    except ValueError:
-        return {"status": "error", "errors": [{"message": f"HTTP {resp.status_code}"}]}
 
 
 def login_url(redirect_uri: str, state: str) -> str:
