@@ -21,6 +21,8 @@ lands here → bot starts at 09:00 (or immediately if approved during market).
 import os
 import sys
 import hmac
+import secrets
+import time as _time
 import logging
 import subprocess
 from datetime import datetime, time
@@ -36,7 +38,7 @@ load_env()
 
 from upstox_token import (
     IST, request_token, verify_token, save_token,
-    token_is_fresh, token_saved_at,
+    token_is_fresh, token_saved_at, login_url, exchange_code,
 )
 
 logging.basicConfig(
@@ -86,7 +88,8 @@ def send_request() -> str:
     res = request_token()
     if res.get("status") == "success":
         data = res.get("data", {})
-        logger.info(f"Approval prompt sent; expires {data.get('authorization_expiry')}")
+        logger.info(f"Approval prompt sent; expires {data.get('authorization_expiry')}  "
+                    f"notifier={data.get('notifier_url')}")
         return "approval prompt sent — check WhatsApp / Upstox app"
     errs = "; ".join(e.get("message", "") for e in res.get("errors", []))
     logger.error(f"Token request failed: {errs or res}")
@@ -127,6 +130,48 @@ def create_app():
         if in_market_window():
             start_if_fresh()
         return jsonify(ok=True)
+
+    # ── Browser login (OAuth code flow) ───────────────────────────────────────
+    # Works regardless of Upstox's webhook firewall: the code comes back via
+    # your own browser. UPSTOX_WEB_REDIRECT_URI must equal the Redirect URL
+    # registered in the Upstox app, e.g. https://<site>/auth/callback.
+    web_redirect = os.getenv("UPSTOX_WEB_REDIRECT_URI", "").strip()
+    pending_states: dict = {}   # state → issued-at; single-process service
+
+    @app.get("/auth/login")
+    def auth_login():
+        if not web_redirect:
+            return redirect(f"/auth?msg={quote('UPSTOX_WEB_REDIRECT_URI not set')}", code=303)
+        state = secrets.token_urlsafe(24)
+        now   = _time.time()
+        for s, t in list(pending_states.items()):
+            if now - t > 600:
+                del pending_states[s]
+        pending_states[state] = now
+        return redirect(login_url(web_redirect, state), code=302)
+
+    @app.get("/auth/callback")
+    def auth_callback():
+        state = request.args.get("state", "")
+        code  = request.args.get("code", "")
+        if not state or pending_states.pop(state, None) is None:
+            return redirect(f"/auth?msg={quote('login expired or invalid — try again')}", code=303)
+        if not code:
+            return redirect(f"/auth?msg={quote('Upstox returned no code')}", code=303)
+        try:
+            token = exchange_code(code, web_redirect)
+        except Exception as e:
+            logger.error(f"Code exchange failed: {e}")
+            return redirect(f"/auth?msg={quote('token exchange failed (see logs)')}", code=303)
+        if not verify_token(token):
+            return redirect(f"/auth?msg={quote('Upstox rejected the token')}", code=303)
+
+        save_token(token)
+        logger.info("Token saved via browser login")
+        msg = "logged in — token saved"
+        if in_market_window():
+            msg += "; " + start_if_fresh()
+        return redirect(f"/auth?msg={quote(msg)}", code=303)
 
     @app.get("/auth")
     def auth_page():
@@ -193,7 +238,8 @@ PAGE = """<!doctype html>
     <dt>Token saved</dt><dd>{saved}</dd>
     <dt>Bot</dt><dd class="{bot_cls}">{bot_state}</dd>
   </dl>
-  <form method="post" action="/auth/request"><button>Send login approval</button></form>
+  <form method="get" action="/auth/login"><button>Log in with Upstox</button></form>
+  <form method="post" action="/auth/request"><button>Send WhatsApp approval</button></form>
   <form method="post" action="/auth/start"><button>Start bot</button></form>
   <form method="post" action="/auth/stop"><button>Stop bot</button></form>
   <p><a href="/">Open dashboard →</a></p>

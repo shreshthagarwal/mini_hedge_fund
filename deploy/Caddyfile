@@ -6,6 +6,7 @@
 
 {$SITE_ADDRESS} {
 	encode gzip
+	log # access log → journald (Authorization header is redacted)
 
 	# Upstox Notifier Webhook — must be reachable without a login;
 	# token_service.py only accepts it on the secret path.

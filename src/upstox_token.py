@@ -59,6 +59,38 @@ def request_token() -> dict:
         return {"status": "error", "errors": [{"message": f"HTTP {resp.status_code}"}]}
 
 
+def login_url(redirect_uri: str, state: str) -> str:
+    """Upstox's standard login page (phone → OTP → PIN) for the OAuth code flow."""
+    from urllib.parse import urlencode
+    q = urlencode({
+        "response_type": "code",
+        "client_id":     os.getenv("UPSTOX_API_KEY", "").strip(),
+        "redirect_uri":  redirect_uri,
+        "state":         state,
+    })
+    return f"{API_V2}/login/authorization/dialog?{q}"
+
+
+def exchange_code(code: str, redirect_uri: str) -> str:
+    """Swap the OAuth code for an access token. Raises on failure."""
+    resp = requests.post(
+        f"{API_V2}/login/authorization/token",
+        headers = {"Content-Type": "application/x-www-form-urlencoded",
+                   "Accept": "application/json"},
+        data    = {
+            "code":          code,
+            "client_id":     os.getenv("UPSTOX_API_KEY", "").strip(),
+            "client_secret": os.getenv("UPSTOX_API_SECRET", "").strip(),
+            "redirect_uri":  redirect_uri,
+            "grant_type":    "authorization_code",
+        },
+        timeout = 15,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"Upstox token exchange HTTP {resp.status_code}: {resp.text[:200]}")
+    return resp.json()["access_token"]
+
+
 def verify_token(token: str) -> bool:
     """True if Upstox accepts the token (profile call succeeds)."""
     try:
