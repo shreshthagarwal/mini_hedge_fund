@@ -1,0 +1,34 @@
+# /etc/caddy/Caddyfile — HTTPS front door for the bot (Caddy ≥ 2.8).
+# Values come from /etc/caddy/hedgebot.env (never committed):
+#   SITE_ADDRESS        e.g. 1-2-3-4.sslip.io  (Caddy fetches the TLS cert)
+#   DASH_USER           login name
+#   DASH_PASSWORD_HASH  output of `caddy hash-password`
+
+{$SITE_ADDRESS} {
+	encode gzip
+
+	# Upstox Notifier Webhook — must be reachable without a login;
+	# token_service.py only accepts it on the secret path.
+	handle /upstox/webhook/* {
+		reverse_proxy 127.0.0.1:5174
+	}
+
+	handle {
+		basic_auth {
+			{$DASH_USER} {$DASH_PASSWORD_HASH}
+		}
+		handle /auth* {
+			reverse_proxy 127.0.0.1:5174
+		}
+		handle {
+			reverse_proxy 127.0.0.1:5173
+		}
+	}
+
+	# Bot stopped (outside market hours) → send to the login/status page
+	handle_errors 502 503 {
+		@bot not path /auth* /upstox/*
+		redir @bot /auth 302
+		respond "Service unavailable" 502
+	}
+}

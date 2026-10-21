@@ -1,0 +1,19 @@
+# /etc/systemd/system/hedgebot.service — the paper-trading bot.
+# Not enabled at boot: started daily by hedgebot-token once a token exists.
+[Unit]
+Description=NIFTY multi-strategy paper trading bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/mini_hedge_fund
+ExecStart=/home/ubuntu/mini_hedge_fund/venv/bin/python -u main.py paper
+KillSignal=SIGINT
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=20
+Environment=PYTHONIOENCODING=utf-8
+
+[Install]
+WantedBy=multi-user.target

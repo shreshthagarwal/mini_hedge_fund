@@ -826,12 +826,17 @@ def create_multi_app(engine) -> Flask:
     @app.route("/api/manual_trade", methods=["POST"])
     def manual_trade():
         from flask import request
-        # The dashboard is served publicly without login — anyone with the URL
-        # could otherwise place trades. Opt in with ALLOW_MANUAL_TRADES=1.
+        # Opt in with ALLOW_MANUAL_TRADES=1; keep 0 if the URL has no login.
         if os.getenv("ALLOW_MANUAL_TRADES", "0") != "1":
             return jsonify({"ok": False,
                             "message": "Manual trading is disabled on this server"}), 403
-        data      = request.get_json(force=True, silent=True) or {}
+        # CSRF: browsers resend saved login credentials on cross-site form
+        # posts. Requiring a JSON body forces a CORS preflight (which this
+        # app never approves), and a foreign Origin is refused outright.
+        origin = request.headers.get("Origin")
+        if not request.is_json or (origin and origin.split("://", 1)[-1] != request.host):
+            return jsonify({"ok": False, "message": "Cross-site request refused"}), 403
+        data      = request.get_json(silent=True) or {}
         s_key     = data.get("strategy", "")
         direction = data.get("direction", "")
         if not s_key or not direction:

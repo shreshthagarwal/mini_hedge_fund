@@ -1,0 +1,16 @@
+# /etc/systemd/system/hedgebot-token.service — always-on token webhook + /auth page.
+[Unit]
+Description=Upstox token webhook and bot control page
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/mini_hedge_fund
+ExecStart=/home/ubuntu/mini_hedge_fund/venv/bin/python -u scripts/token_service.py serve
+Restart=always
+RestartSec=5
+Environment=PYTHONIOENCODING=utf-8
+
+[Install]
+WantedBy=multi-user.target
