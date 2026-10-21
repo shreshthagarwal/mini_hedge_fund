@@ -1,10 +1,22 @@
+# Python 3.11+ (numpy 2.3 requires it)
+# Pinned to the versions the project runs on locally (conda env stock-predictor)
+# so the server reproduces the same environment.
+
 # Core
-pandas>=2.0
-numpy>=1.24
-matplotlib>=3.7
+pandas==2.3.2
+numpy==2.3.2
+matplotlib==3.10.7
 
-# Data — yfinance (historical + live polling)
-yfinance>=0.2
+# ML — must match exactly: the pickled S3/S4 models only load reliably on the
+# scikit-learn version that saved them
+scikit-learn==1.7.1
 
-# Optional: install if you want to try tvDatafeed later
-# tradingview-datafeed>=2.0.0
+# Data
+yfinance==0.2.65
+requests==2.32.5
+
+# Broker + live feed (MarketDataStreamerV3)
+upstox-python-sdk==2.21.0
+
+# Dashboard
+flask==3.1.3

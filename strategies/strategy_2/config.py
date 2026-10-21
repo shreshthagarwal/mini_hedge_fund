@@ -42,7 +42,10 @@ RSI_OVERBOUGHT     = 65
 VOLUME_CONFIRM_MULT = 1.0   # 1.0 = at least average volume
 
 # SL: multiple of ATR beyond the signal bar extreme
-ATR_SL_MULT        = 0.75
+ATR_SL_MULT        = 0.5
+
+# Maximum bars to hold a position (8 min for medium-frequency)
+MAX_HOLD_BARS      = 8
 
 # Target: VWAP itself (dynamic — changes each bar)
 # RR is not fixed — depends on distance to VWAP at entry time

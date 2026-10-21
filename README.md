@@ -601,7 +601,7 @@ Sharpe is computed from `daily_pnl` series (not bar-level returns). For intraday
 ```powershell
 python scripts/upstox_auth.py   # get fresh token first
 python main.py paper
-# Open: http://localhost:5000
+# Open: http://localhost:5173
 ```
 
 ### Two-phase warmup
@@ -644,7 +644,7 @@ S5 builds a basis DataFrame separately: aligns spot buffer (from yfinance proxy 
 
 ### Dashboard (Kinetic Observatory)
 
-Single-page HTML app served by Flask at `localhost:5000`. Polls `/api/state` every 3 seconds.
+Single-page HTML app served by Flask at `localhost:5173`. Polls `/api/state` every 3 seconds.
 
 **Top navigation bar:** live price, session P&L, bot status dot (pulsing green = active), timestamp.
 
@@ -685,7 +685,7 @@ python main.py backtest
 
 # Paper trading
 python main.py paper
-# -> starts warmup, opens dashboard at http://localhost:5000
+# -> starts warmup, opens dashboard at http://localhost:5173
 # -> Ctrl+C to stop
 
 # After market close
@@ -875,7 +875,7 @@ Backtest:
   python main.py backtest   (prompts strategy, data, run type)
 
 Paper trade all 5 strategies:
-  python main.py paper      (dashboard at http://localhost:5000)
+  python main.py paper      (dashboard at http://localhost:5173)
 
 Data analysis:
   python scripts/analyze_csv.py

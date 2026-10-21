@@ -61,6 +61,9 @@ MIN_RR                = 1.5
 # SL: ATR multiple beyond pattern extreme
 ATR_SL_MULT           = 1.0
 
+# Maximum bars to hold a position (10 min for medium-frequency)
+MAX_HOLD_BARS         = 10
+
 # Dow trend filter: use EMA to determine primary trend
 DOW_EMA_PERIOD        = 50   # ~50 bars = ~4 hours intraday trend
 

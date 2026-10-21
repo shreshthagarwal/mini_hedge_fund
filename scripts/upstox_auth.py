@@ -12,9 +12,8 @@ Flow:
 
 Token is valid for 1 day. Re-run each morning.
 
-Set credentials first:
-    $env:UPSTOX_API_KEY    = "your_api_key"
-    $env:UPSTOX_API_SECRET = "your_api_secret"
+Set credentials first, in .env (see .env.example) or the environment:
+    UPSTOX_API_KEY, UPSTOX_API_SECRET, UPSTOX_REDIRECT_URI
 """
 
 import os
@@ -25,18 +24,21 @@ import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from env import load_env
+load_env()
+
 API_KEY    = os.getenv("UPSTOX_API_KEY",    "").strip()
 API_SECRET = os.getenv("UPSTOX_API_SECRET", "").strip()
-REDIRECT   = "http://127.0.0.1:5000/callback"
+REDIRECT   = os.getenv("UPSTOX_REDIRECT_URI", "http://127.0.0.1:5173/callback").strip()
 TOKEN_FILE = ".upstox_token"
 BASE_URL   = "https://api.upstox.com"
 
 if not API_KEY or not API_SECRET:
     print(
-        "\nERROR: Credentials not set. Run in PowerShell:\n"
-        "  $env:UPSTOX_API_KEY    = 'your_api_key'\n"
-        "  $env:UPSTOX_API_SECRET = 'your_api_secret'\n"
-        "Then re-run this script."
+        "\nERROR: Credentials not set.\n"
+        "  Copy .env.example to .env and fill in UPSTOX_API_KEY / UPSTOX_API_SECRET,\n"
+        "  or set them as environment variables. Then re-run this script."
     )
     sys.exit(1)
 
@@ -99,8 +101,9 @@ if __name__ == "__main__":
     print(f"If browser doesn't open, visit:\n{login_url}\n")
     webbrowser.open(login_url)
 
-    print("Waiting for login callback on http://127.0.0.1:5000/callback ...")
-    HTTPServer(("127.0.0.1", 5000), Handler).handle_request()
+    redirect = urlparse(REDIRECT)
+    print(f"Waiting for login callback on {REDIRECT} ...")
+    HTTPServer((redirect.hostname, redirect.port or 80), Handler).handle_request()
 
     code = _code["value"]
     if not code:

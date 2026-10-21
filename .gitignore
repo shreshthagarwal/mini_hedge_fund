@@ -2,6 +2,11 @@
 .upstox_token
 .env
 
+# SSH keys / certificates
+*.pem
+*.key
+*.ppk
+
 # Data and Artifacts (large CSVs)
 data/*.csv
 options_data/*.csv

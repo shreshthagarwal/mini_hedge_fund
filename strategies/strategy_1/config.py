@@ -40,11 +40,14 @@ ADX_THRESHOLD      = 30
 
 # ATR_SL_MULT: stop loss = entry ± (ATR_SL_MULT × ATR)
 # Higher = wider stop, fewer stop-outs but larger losses
-ATR_SL_MULT        = 1.8
+ATR_SL_MULT        = 1.0
 
 # RR_RATIO: target = RR_RATIO × SL distance
-# 2.0 means target is twice the stop distance
-RR_RATIO           = 1.9
+# Tightened for 1-min medium-frequency scalping
+RR_RATIO           = 1.3
+
+# MAX_HOLD_BARS: force exit after this many 1-min bars (10 min)
+MAX_HOLD_BARS      = 10
 
 # ORB_ENTRY_CUTOFF: no new entries after this time
 import datetime

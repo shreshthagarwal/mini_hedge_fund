@@ -38,8 +38,8 @@ TARGET_BONUS      = 0.5     # extra bonus on target hit
 
 # ─── Risk / exits ─────────────────────────────────────────────────────────────
 ATR_SL_MULT       = 1.2
-ATR_TARGET_MULT   = 1.8
-MAX_HOLD_BARS     = 120     # force exit after 2 hours (120 × 1-min bars)
+ATR_TARGET_MULT   = 1.5
+MAX_HOLD_BARS     = 8      # force exit after 8 minutes (was 120 — 2 hours)
 
 # ─── PPO hyperparameters ──────────────────────────────────────────────────────
 GAMMA             = 0.99    # discount factor

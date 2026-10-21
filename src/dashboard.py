@@ -6,7 +6,7 @@ Shows: live price, session P&L, open position, trade log, activity log.
 
 Run:
     python main.py paper
-Then open: http://localhost:5000
+Then open: http://localhost:5173
 """
 
 import os

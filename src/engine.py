@@ -36,6 +36,13 @@ from typing import Protocol, Optional
 import numpy as np
 import pandas as pd
 
+# Risk management — imported lazily to allow standalone engine use
+try:
+    from risk_management import PositionRisk, PositionRiskManager, RISK_CONFIGS, RiskConfig
+    _RISK_AVAILABLE = True
+except ImportError:
+    _RISK_AVAILABLE = False
+
 logger = logging.getLogger("engine")
 
 
@@ -53,6 +60,8 @@ class EngineConfig:
     square_off_time:    time  = time(15, 20)
     max_lots:           int   = 1
     max_daily_loss_pct: float = 0.02
+    use_risk_mgmt:      bool  = True    # enable dual target / trailing / BE / time stop
+    risk_strategy:      str   = "S1"   # which RISK_CONFIGS entry to use
 
     @property
     def slippage(self) -> float:
@@ -291,7 +300,8 @@ class BacktestEngine:
 
         # Pending signal (filled next bar, same session only)
         pending_sig:   Optional[Signal] = None
-        pending_date:  Optional[date]   = None   # date pending signal was generated
+        pending_date:  Optional[date]   = None
+        pos_risk_mgr   = None   # PositionRiskManager for current open position
 
         # Accounting
         capital     = float(self.cfg.initial_capital)
@@ -360,42 +370,89 @@ class BacktestEngine:
                     f"  FILL {sig.direction} @ {entry:.2f}  "
                     f"SL {sl:.2f}  TGT {target:.2f}  [{ts.strftime('%H:%M')}]"
                 )
+                # Create risk manager for this position
+                if _RISK_AVAILABLE and self.cfg.use_risk_mgmt:
+                    risk_cfg = RISK_CONFIGS.get(self.cfg.risk_strategy, RiskConfig())
+                    risk_cfg.tick_size = self.cfg.tick_size
+                    _pos_risk = PositionRisk.create(
+                        direction = sig.direction,
+                        entry     = entry,
+                        sl_dist   = sig.sl_dist,
+                        target    = target,
+                        lots      = pos_lots,
+                        cfg       = risk_cfg,
+                        tick_size = self.cfg.tick_size,
+                    )
+                    pos_risk_mgr = PositionRiskManager(_pos_risk)
+                else:
+                    pos_risk_mgr = None
 
-            # ── Check exits ───────────────────────────────────────────────────
+            # ── Check exits (risk-managed) ─────────────────────────────────
             if in_pos:
-                exit_price  = None
-                exit_reason = None
-                bar_high    = highs[i]
-                bar_low     = lows[i]
-                bar_open    = opens[i]
+                bar_high = highs[i]
+                bar_low  = lows[i]
+                bar_open = opens[i]
 
-                # 1. Square-off (exit at bar open — conservative)
-                if ts.time() >= self.cfg.square_off_time:
-                    exit_price  = bar_open
-                    exit_reason = "square-off"
+                # Use risk manager if available and enabled
+                if _RISK_AVAILABLE and self.cfg.use_risk_mgmt and pos_risk_mgr is not None:
+                    exit_price, exit_reason, lots_to_exit = pos_risk_mgr.check(
+                        bar_high, bar_low, bar_open, ts, self.cfg.square_off_time
+                    )
+                    # Update pos_sl from risk manager (trailing / BE moves)
+                    pos_sl = pos_risk_mgr.current_sl
 
-                # 2. SL/Target intra-bar
-                elif pos_dir == "LONG":
-                    if bar_low <= pos_sl:
-                        exit_price  = pos_sl
-                        exit_reason = "stop loss"
-                    elif bar_high >= pos_target:
-                        exit_price  = pos_target
-                        exit_reason = "target"
+                    # Partial exit (T1)
+                    if exit_price is not None and lots_to_exit < pos_lots and lots_to_exit > 0:
+                        pts        = (exit_price - pos_entry) if pos_dir == "LONG" \
+                                     else (pos_entry - exit_price)
+                        gross      = pts * lots_to_exit * self.cfg.lot_size
+                        commission = self.cfg.commission_per_lot * lots_to_exit * 2
+                        net        = gross - commission
+                        capital   += net
+                        day_pnl   += net
+                        trade_id  += 1
+                        trades.append(Trade(
+                            id=trade_id, strategy=strategy_name,
+                            entry_time=idx[pos_entry_i], exit_time=ts,
+                            direction=pos_dir, entry_price=pos_entry,
+                            exit_price=exit_price, sl=pos_sl, target=pos_target,
+                            lots=lots_to_exit, pnl_points=pts, pnl_gross=gross,
+                            commission=commission, pnl_net=net,
+                            exit_reason=exit_reason,
+                            duration_min=(ts-idx[pos_entry_i]).total_seconds()/60,
+                        ))
+                        pos_lots -= lots_to_exit   # reduce remaining lots
+                        equity[i] = capital
+                        exit_price = None          # clear — position still open
 
-                elif pos_dir == "SHORT":
-                    if bar_high >= pos_sl:
-                        exit_price  = pos_sl
-                        exit_reason = "stop loss"
-                    elif bar_low <= pos_target:
-                        exit_price  = pos_target
-                        exit_reason = "target"
+                    # No risk manager — fallback to simple SL/target
+                else:
+                    exit_price  = None
+                    exit_reason = None
+                    if ts.time() >= self.cfg.square_off_time:
+                        exit_price  = bar_open
+                        exit_reason = "square-off"
+                    elif pos_dir == "LONG":
+                        if bar_low <= pos_sl:
+                            exit_price  = pos_sl
+                            exit_reason = "stop loss"
+                        elif bar_high >= pos_target:
+                            exit_price  = pos_target
+                            exit_reason = "target"
+                    elif pos_dir == "SHORT":
+                        if bar_high >= pos_sl:
+                            exit_price  = pos_sl
+                            exit_reason = "stop loss"
+                        elif bar_low <= pos_target:
+                            exit_price  = pos_target
+                            exit_reason = "target"
+                    lots_to_exit = pos_lots
 
                 if exit_price is not None:
                     pts        = (exit_price - pos_entry) if pos_dir == "LONG" \
                                  else (pos_entry - exit_price)
-                    gross      = pts * pos_lots * self.cfg.lot_size
-                    commission = self.cfg.commission_per_lot * pos_lots * 2
+                    gross      = pts * lots_to_exit * self.cfg.lot_size
+                    commission = self.cfg.commission_per_lot * lots_to_exit * 2
                     net        = gross - commission
 
                     capital  += net
@@ -412,7 +469,7 @@ class BacktestEngine:
                         exit_price   = exit_price,
                         sl           = pos_sl,
                         target       = pos_target,
-                        lots         = pos_lots,
+                        lots         = lots_to_exit,
                         pnl_points   = pts,
                         pnl_gross    = gross,
                         commission   = commission,
@@ -423,8 +480,9 @@ class BacktestEngine:
                     ))
                     strategy.on_exit(exit_reason, exit_price, ts)
 
-                    in_pos  = False
-                    pos_dir = None
+                    in_pos       = False
+                    pos_dir      = None
+                    pos_risk_mgr = None
 
             equity[i] = capital
 

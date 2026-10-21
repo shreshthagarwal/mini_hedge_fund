@@ -16,6 +16,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 # Project root on path (so strategies.strategy_1.config works)
 sys.path.insert(0, os.path.dirname(__file__))
 
+from env import load_env
+load_env()
+
 import logging
 logging.basicConfig(
     level=logging.INFO,
@@ -127,12 +130,15 @@ def cmd_backtest():
         df = df_aligned
     else:
         df = HistoricalFeed(csv_path=csv_path).load()
+    risk_map = {"1":"S1","2":"S2","3":"S3","4":"S4","5":"S5"}
     cfg = EngineConfig(
         initial_capital    = INITIAL_CAPITAL,
         lot_size           = LOT_SIZE,
         commission_per_lot = COMMISSION_PER_LOT,
         square_off_time    = SQUARE_OFF,
         slippage_ticks     = 1,
+        use_risk_mgmt      = True,
+        risk_strategy      = risk_map.get(s, "S1"),
     )
     eng = BacktestEngine(cfg)
 
@@ -171,8 +177,11 @@ def cmd_paper():
     from src.multi_engine    import MultiStrategyEngine
     from src.multi_dashboard import create_multi_app
 
+    host = os.getenv("DASHBOARD_HOST", "127.0.0.1")
+    port = int(os.getenv("DASHBOARD_PORT", "5173"))
+
     logger.info("─── PAPER TRADING  all 5 strategies ───────────────────")
-    logger.info("Dashboard: http://localhost:5000")
+    logger.info(f"Dashboard: http://{host}:{port}")
 
     # Load token
     TOKEN_FILE = ".upstox_token"
@@ -209,19 +218,28 @@ def cmd_paper():
     front          = nifty[0]
     instrument_key = front["instrument_key"]
     expiry         = pd.Timestamp(front["expiry"], unit="ms").date()
-    logger.info(f"Front-month: {instrument_key}  expiry {expiry}")
+    lot_size       = int(front.get("lot_size") or 0) or None
+    logger.info(f"Front-month: {instrument_key}  expiry {expiry}  lot {lot_size}")
 
     engine = MultiStrategyEngine(
         token          = token,
         instrument_key = instrument_key,
         warmup_csv     = futures_csv,
         spot_csv       = spot_csv,
+        lot_size       = lot_size,
     )
     app = create_multi_app(engine)
     engine.start()
 
+    # systemd stops services with SIGTERM — route it through the same
+    # clean shutdown path as Ctrl+C so the session summary still runs.
+    import signal
+    def _sigterm(*_):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _sigterm)
+
     try:
-        app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+        app.run(host=host, port=port, debug=False, use_reloader=False)
     except KeyboardInterrupt:
         pass
     finally:
